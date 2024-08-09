@@ -15,11 +15,18 @@ public:
 
     ArrayPtr(const ArrayPtr&) = delete;
 
+    ArrayPtr(ArrayPtr&& rhs) : ArrayPtr{rhs.Release()} {}
+
     ~ArrayPtr() {
         delete [] raw_ptr_;
     }
 
     ArrayPtr& operator=(const ArrayPtr&) = delete;
+
+    ArrayPtr& operator=(ArrayPtr&& rhs) {
+        raw_ptr_(rhs.Release());
+        return *this; 
+    }
 
     [[nodiscard]] Type* Release() noexcept {
         Type* copy = raw_ptr_;

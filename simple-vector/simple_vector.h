@@ -30,15 +30,9 @@ public:
 
     SimpleVector() noexcept = default;
 
-    explicit SimpleVector(size_t size) : size_{size}, capacity_{size} {
-        ArrayPtr<Type> tmp{size};
-        items_.swap(tmp);
-        std::fill(begin(), end(), Type());
-    }
+    explicit SimpleVector(size_t size) : SimpleVector(size, Type()) {}
 
-    SimpleVector(size_t size, const Type& value) : size_{size}, capacity_{size} {
-        ArrayPtr<Type> tmp{size};
-        items_.swap(tmp);
+    SimpleVector(size_t size, const Type& value) : items_{size}, size_{size}, capacity_{size} {
         std::fill(begin(), end(), value);
     }
 
@@ -66,20 +60,19 @@ public:
         if (&rhs == this) {
             return *this;
         }
-        size_t size{rhs.size_};
-        make_new_copy_vector(size, rhs.begin(), rhs.end());
-        size_ = size;
-        capacity_ = size;
+        SimpleVector tmp{rhs};
+        swap(tmp);
         return *this;
     }
 
     SimpleVector& operator=(SimpleVector&& rhs) {
-        if (&rhs == this) return *this;
-        size_t size{rhs.size_};
-        make_new_move_vector(size, rhs.begin(), rhs.end());   
-        static_cast<void>(rhs.items_.Release());              //Чтобы в rhs.items_ записать nullptr, вызовем Release()
-        size_ = std::exchange(rhs.size_, 0);                  //Чтобы обойти warning из-за [[nodiscard]] в Release(), приведем к void
+        if (&rhs == this) {
+            return *this;
+        }
+        items_.swap(rhs.items_);                 
+        size_ = std::exchange(rhs.size_, 0);
         capacity_ = std::exchange(rhs.capacity_, 0);
+        delete [] rhs.items_.Release();   //Освобождаем старый items_ и записываем nullptr в rhs
         return *this;
     }
 
@@ -104,7 +97,7 @@ public:
     }
 
     Iterator Insert(ConstIterator pos, const Type& value) {
-        int index{static_cast<int>(std::distance(cbegin(), pos))};
+        size_t index{static_cast<size_t>(std::distance(cbegin(), pos))};
         if (size_ == capacity_) {
             size_t new_capacity{capacity_ ? (capacity_ * 2) : 1};
             make_new_move_vector(new_capacity, begin(), end());
@@ -116,7 +109,7 @@ public:
     }
 
     Iterator Insert(ConstIterator pos, Type&& value) {
-        int index{static_cast<int>(std::distance(cbegin(), pos))};
+        size_t index{static_cast<size_t>(std::distance(cbegin(), pos))};
         if (size_ == capacity_) {
             size_t new_capacity{capacity_ ? (capacity_ * 2) : 1};
             make_new_move_vector(new_capacity, begin(), end());
@@ -128,17 +121,13 @@ public:
     }
 
     void PopBack() noexcept {
-        if (size_ == 0) {
-            return;
-        }
+        assert(size_ != 0);
         --size_;
     }
 
     Iterator Erase(ConstIterator pos) {
-        if (size_ == 0) {
-            return nullptr;
-        }
-        int index{static_cast<int>(std::distance(cbegin(), pos))};
+        assert(size_ != 0);
+        size_t index{static_cast<size_t>(std::distance(cbegin(), pos))};
         std::move(begin() + index + 1, end(), begin() + index);
         --size_;
         return begin() + index;
@@ -166,10 +155,7 @@ public:
     }
 
     bool IsEmpty() const noexcept {
-        if (size_) {
-            return false;
-        }
-        return true;
+        return (size_ == 0);
     }
 
     Type& operator[](size_t index) noexcept {
