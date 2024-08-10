@@ -37,15 +37,15 @@ public:
     }
 
     SimpleVector(std::initializer_list<Type> init) : size_{init.size()}, capacity_{init.size()}  {
-        make_new_copy_vector(init.size(), init.begin(), init.end());        
+        MakeNewCopyVector(init.begin(), init.end());        
     }
 
     SimpleVector(const SimpleVector& other) : size_{other.size_}, capacity_{other.size_}  {
-        make_new_copy_vector(other.size_, other.begin(), other.end());
+        MakeNewCopyVector(other.begin(), other.end());
     }
 
     SimpleVector(SimpleVector&& other) {
-        make_new_move_vector(other.size_, other.begin(), other.end());
+        MakeNewMoveVector(other.size_, other.begin(), other.end());
         size_ = std::exchange(other.size_, 0);
         capacity_ = std::exchange(other.capacity_, 0);
     }
@@ -72,14 +72,14 @@ public:
         items_.swap(rhs.items_);                 
         size_ = std::exchange(rhs.size_, 0);
         capacity_ = std::exchange(rhs.capacity_, 0);
-        delete [] rhs.items_.Release();   //Освобождаем старый items_ и записываем nullptr в rhs
+        delete [] rhs.items_.Release();  
         return *this;
     }
 
     void PushBack(const Type& item) {
         if (size_ == capacity_) {
             size_t new_capacity{(capacity_) ? (capacity_ * 2) : 1};
-            make_new_move_vector(new_capacity, begin(), end());
+            MakeNewMoveVector(new_capacity, begin(), end());
             capacity_ = new_capacity;
         }
         items_[size_] = item;
@@ -89,7 +89,7 @@ public:
     void PushBack(Type&& item) {
         if (size_ == capacity_) {
             size_t new_capacity{(capacity_) ? (capacity_ * 2) : 1};
-            make_new_move_vector(new_capacity, begin(), end());
+            MakeNewMoveVector(new_capacity, begin(), end());
             capacity_ = new_capacity;
         }
         items_[size_] = std::move(item);
@@ -100,7 +100,7 @@ public:
         size_t index{static_cast<size_t>(std::distance(cbegin(), pos))};
         if (size_ == capacity_) {
             size_t new_capacity{capacity_ ? (capacity_ * 2) : 1};
-            make_new_move_vector(new_capacity, begin(), end());
+            MakeNewMoveVector(new_capacity, begin(), end());
             capacity_ = new_capacity;
         }
         items_[index] = value;
@@ -112,7 +112,7 @@ public:
         size_t index{static_cast<size_t>(std::distance(cbegin(), pos))};
         if (size_ == capacity_) {
             size_t new_capacity{capacity_ ? (capacity_ * 2) : 1};
-            make_new_move_vector(new_capacity, begin(), end());
+            MakeNewMoveVector(new_capacity, begin(), end());
             capacity_ = new_capacity;
         }
         items_[index] = std::move(value);
@@ -121,12 +121,12 @@ public:
     }
 
     void PopBack() noexcept {
-        assert(size_ != 0);
+        assert(!IsEmpty());
         --size_;
     }
 
     Iterator Erase(ConstIterator pos) {
-        assert(size_ != 0);
+        assert(!IsEmpty());
         size_t index{static_cast<size_t>(std::distance(cbegin(), pos))};
         std::move(begin() + index + 1, end(), begin() + index);
         --size_;
@@ -141,7 +141,7 @@ public:
 
     void Reserve(size_t new_capacity) {
         if (new_capacity > capacity_) {
-            make_new_move_vector(new_capacity, begin(), end());
+            MakeNewMoveVector(new_capacity, begin(), end());
             capacity_ = new_capacity;
         }
     }
@@ -199,7 +199,7 @@ public:
             return;
         }
         size_t new_capacity{std::max(new_size, capacity_ * 2)};
-        make_new_move_vector(new_capacity, begin(), end());
+        MakeNewMoveVector(new_capacity, begin(), end());
         auto it = end();
         while (it != begin() + new_size) {
             *it = Type(); 
@@ -242,14 +242,17 @@ private:
     size_t capacity_ = 0;
 
     template <typename It>
-    void make_new_copy_vector(size_t new_value, It begin, It end) {
-        ArrayPtr<Type> tmp(new_value);
+    void MakeNewCopyVector(It begin, It end) {
+        ArrayPtr<Type> tmp(static_cast<size_t>(std::distance(begin, end)));
         std::copy(begin, end, tmp.Get());
         items_.swap(tmp);
     }
 
+    // Этот метод используется в методах, где новый размер вектора не совпадает с расстоянием от begin до end: Resize, Insert, PushBack, Reserve
+    // Исключение состовляет только конструктор SimpleVector(SimpleVector&& other)
+    // Поэтому в этом методе параметр new_value оставил
     template <typename It>
-    void make_new_move_vector(size_t new_value, It begin, It end) {
+    void MakeNewMoveVector(size_t new_value, It begin, It end) {
         ArrayPtr<Type> tmp(new_value);
         std::move(begin, end, tmp.Get());
         items_.swap(tmp);
